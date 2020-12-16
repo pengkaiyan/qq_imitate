@@ -3,6 +3,8 @@ package com.example.test;
 import android.os.Bundle;
 import android.support.constraint.ConstraintLayout;
 import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentTransaction;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,21 +13,8 @@ import android.view.animation.AnimationUtils;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 
-/**
- * A simple {@link Fragment} subclass.
- * Use the {@link LoginFragment#newInstance} factory method to
- * create an instance of this fragment.
- */
 public class LoginFragment extends Fragment {
 
-    // TODO: Rename parameter arguments, choose names that match
-    // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-    private static final String ARG_PARAM1 = "param1";
-    private static final String ARG_PARAM2 = "param2";
-
-    // TODO: Rename and change types of parameters
-    private String mParam1;
-    private String mParam2;
 
     private static ConstraintLayout layoutContext;//正常部分内容，是一个ConstraintLayout
     private LinearLayout layoutHistory;//历史菜单部分，是一个LinearLayout
@@ -33,33 +22,6 @@ public class LoginFragment extends Fragment {
 
     public LoginFragment() {
         // Required empty public constructor
-    }
-
-    /**
-     * Use this factory method to create a new instance of
-     * this fragment using the provided parameters.
-     *
-     * @param param1 Parameter 1.
-     * @param param2 Parameter 2.
-     * @return A new instance of fragment LoginFragment.
-     */
-    // TODO: Rename and change types and number of parameters
-    public static LoginFragment newInstance(String param1, String param2) {
-        LoginFragment fragment = new LoginFragment();
-        Bundle args = new Bundle();
-        args.putString(ARG_PARAM1, param1);
-        args.putString(ARG_PARAM2, param2);
-        fragment.setArguments(args);
-        return fragment;
-    }
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (getArguments() != null) {
-            mParam1 = getArguments().getString(ARG_PARAM1);
-            mParam2 = getArguments().getString(ARG_PARAM2);
-        }
     }
 
     @Override
@@ -70,6 +32,20 @@ public class LoginFragment extends Fragment {
         layoutContext = v.findViewById(R.id.layoutContext);
         layoutHistory = v.findViewById(R.id.layoutHistory);
         editTextQQNum = v.findViewById(R.id.editTextQQNum);
+        View buttonLogin = v.findViewById(R.id.buttonLogin);
+        buttonLogin.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
+                FragmentTransaction fragmentTransaction = fragmentManager.beginTransaction();
+                MainFragment mainFragment = new MainFragment();
+                //替换掉FrameLayout中现有的Fragment
+                fragmentTransaction.replace(R.id.fragment_container, mainFragment);
+                //将这次切换放入后退栈中，这样可以在点击后退键时自动返回上一个页面
+                fragmentTransaction.addToBackStack("login");
+                fragmentTransaction.commit();
+            }
+        });
         //响应下拉箭头的点击事件,弹出登录历史记录菜单
         v.findViewById(R.id.textViewHistory).setOnClickListener(new View.OnClickListener() {
             @Override
