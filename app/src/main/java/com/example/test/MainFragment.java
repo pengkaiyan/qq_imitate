@@ -42,6 +42,11 @@ public class MainFragment extends Fragment {
     //用一个数组保存三个View的实例
     private View listViews[]={null,null,null};
   //  private RecyclerView listViews[]=new RecyclerView[3];
+  //创建一棵树
+    private static ListTree tree=new ListTree();
+    public static ListTree getContactsTree(){
+        return tree;
+    }
     public MainFragment() {
     }
 
@@ -270,8 +275,7 @@ public class MainFragment extends Fragment {
     //创建并实现联系人界面
     private View createContactsPage(){
         View v=getLayoutInflater().inflate(R.layout.contacts_page_layout,null);
-        //创建一棵树，并向树中添加节点
-        ListTree tree=new ListTree();
+
         ContactsPageListAdapter.GroupInfo group1=new ContactsPageListAdapter.GroupInfo("特别关心",0);
         ContactsPageListAdapter.GroupInfo group2=new ContactsPageListAdapter.GroupInfo("QQ好友",1);
         ContactsPageListAdapter.GroupInfo group3=new ContactsPageListAdapter.GroupInfo("朋友",0);

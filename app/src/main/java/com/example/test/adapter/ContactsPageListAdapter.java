@@ -1,5 +1,6 @@
 package com.example.test.adapter;
 
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -7,6 +8,7 @@ import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.example.test.ChatActivity;
 import com.example.test.R;
 import com.niuedu.ListTree;
 import com.niuedu.ListTreeAdapter;
@@ -117,6 +119,17 @@ public class ContactsPageListAdapter extends ListTreeAdapter<ListTreeAdapter.Lis
             imageViewHead=(ImageView)itemView. findViewById(R.id.imageViewHead);
             textViewTitle=(TextView)itemView. findViewById(R.id.textViewTitle);
             textViewDetail=(TextView)itemView. findViewById(R.id.textViewDetail);
+            //当点击这一行时，开始聊天
+            itemView.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    //进入聊天界面
+                    Intent intent=new Intent(itemView.getContext(), ChatActivity.class);
+                    //将对方的名字作为参数传过去
+                    intent.putExtra("contact_name",(String)v.getTag());
+                    itemView.getContext().startActivity(intent);
+                }
+            });
         }
     }
 }
