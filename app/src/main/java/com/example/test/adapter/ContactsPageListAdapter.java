@@ -13,6 +13,8 @@ import com.example.test.R;
 import com.niuedu.ListTree;
 import com.niuedu.ListTreeAdapter;
 
+import java.io.Serializable;
+
 
 public class ContactsPageListAdapter extends ListTreeAdapter<ListTreeAdapter.ListTreeViewHolder> {
 
@@ -76,13 +78,13 @@ public class ContactsPageListAdapter extends ListTreeAdapter<ListTreeAdapter.Lis
         }
     }
     //存放组中的联系人数据
-    static public class ContactInfo{
-        private Bitmap avatar;//联系人的头像
+    static public class ContactInfo implements Serializable {
+        private Bitmap avatarURL;//联系人的头像URL
         private String name;//联系人的名字
         private String  status;//联系人的在线状态
 
         public Bitmap getAvatar() {
-            return avatar;
+            return avatarURL;
         }
 
         public String getName() {
@@ -94,7 +96,7 @@ public class ContactsPageListAdapter extends ListTreeAdapter<ListTreeAdapter.Lis
         }
 
         public ContactInfo(Bitmap avatar, String name, String status) {
-            this.avatar = avatar;
+            this.avatarURL = avatar;
             this.name = name;
             this.status = status;
         }

@@ -4,6 +4,7 @@ import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.ValueAnimator;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
@@ -11,6 +12,7 @@ import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.widget.Snackbar;
 import android.support.design.widget.TabLayout;
 import android.support.v4.app.Fragment;
 import android.support.v4.view.PagerAdapter;
@@ -21,6 +23,7 @@ import android.support.v7.widget.RecyclerView;
 import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.style.ImageSpan;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -32,13 +35,36 @@ import android.widget.TextView;
 
 import com.example.test.adapter.ContactsPageListAdapter;
 import com.example.test.adapter.MessagePageListAdapter;
+import com.example.test.service.ChatService;
+import com.example.test.service.FragmentListener;
 import com.niuedu.ListTree;
 
-public class MainFragment extends Fragment {
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
+import io.reactivex.Observable;
+import io.reactivex.Observer;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.schedulers.Schedulers;
+import retrofit2.Retrofit;
+
+public class MainFragment extends Fragment {
+        private Disposable observableDisposable;//用于停止订阅的东西
     private ViewGroup rootView;
     private TabLayout tabLayout;
     ViewPager viewPager;
+    private ChatService service;//Retrofit所需要的接口
+    //联系人Adapter，为了更新数据而设
+   private ContactsPageListAdapter contactsAdapter;
+    //从服务端获取到联系人之后，放到“我的好友”组中，为了方便访问组节点，把groupNode变量搞成了MainFragment的成员变量
+    private ListTree.TreeNode groupNode1;
+    private ListTree.TreeNode groupNode2;
+    private ListTree.TreeNode groupNode3;
+    private ListTree.TreeNode groupNode4;
+    private ListTree.TreeNode groupNode5;
+
+    private FragmentListener fragmentListener;
     //用一个数组保存三个View的实例
     private View listViews[]={null,null,null};
   //  private RecyclerView listViews[]=new RecyclerView[3];
@@ -53,7 +79,9 @@ public class MainFragment extends Fragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        service=fragmentListener.getRetrofit().create(ChatService.class);
     }
+
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -66,23 +94,13 @@ public class MainFragment extends Fragment {
         tabLayout=this.rootView.findViewById(R.id.tabLayout);
          tabLayout.setupWithViewPager(viewPager);
          RecyclerView v1=new RecyclerView(getContext());
-      //   View v2=getLayoutInflater().inflate(R.layout.contacts_page_layout,null);
         View v2=createContactsPage();
          RecyclerView v3=new RecyclerView(getContext());
          listViews[0]=v1;
          listViews[1]=v2;
          listViews[2]=v3;
-       /* listViews[0]=new RecyclerView(getContext());
-        listViews[1]=new RecyclerView(getContext());
-        listViews[2]=new RecyclerView(getContext());*/
-        // LinearLayoutManager layoutManager=new LinearLayoutManager(getContext());
         v1.setLayoutManager(new LinearLayoutManager(getContext()));
-       // RecyclerView recyclerViewInV2 =v2.findViewById(R.id.contactListView);
-       // recyclerViewInV2.setLayoutManager(new LinearLayoutManager(getContext()));
-        //为RecyclerView设置Adapter
-       // listViews[0].setAdapter(new MessagePageListAdapter(getActivity()));
         v1.setAdapter(new MessagePageListAdapter(getActivity()));
-      //  recyclerViewInV2.setAdapter(new ContactsPageListAdapter(null));
         //响应+号图标事件，显示蒙板和气泡菜单
         TextView popMenu=this.rootView.findViewById(R.id.textViewPopMenu);
         popMenu.setOnClickListener(new View.OnClickListener() {
@@ -272,21 +290,104 @@ public class MainFragment extends Fragment {
         });
         return rootView;
     }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        //停止RxJava定时器
+        observableDisposable.dispose();
+        observableDisposable=null;
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        Observable intervalObservable=Observable.interval(10,TimeUnit.SECONDS);
+        //创建一个定时器Observable
+        intervalObservable.retry()
+                .flatMap(v->{
+                    //向服务端发出获取联系人请求列表
+
+                    return service.getContacts().map(result->{
+                        //转换服务器端返回的数据，将真正的负载发送给观察者
+                        if (result.getRetCode() == 0) {
+                            return result.getData();
+                        }else{
+                            throw new RuntimeException(result.getErrMsg());
+                        }
+                    });
+                }).subscribeOn(Schedulers.computation())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<List<ContactsPageListAdapter.ContactInfo>>(){
+
+                    @Override
+                    public void onSubscribe(@io.reactivex.annotations.NonNull Disposable d) {
+                        observableDisposable=d;
+                    }
+
+                    @Override
+                    public void onNext(@io.reactivex.annotations.NonNull List<ContactsPageListAdapter.ContactInfo> contactInfos) {
+                        //将联系人们保存到“我的好友”组
+                        //但注意，需要先清空现有的好友
+                        tree.clearDescendant(groupNode2);
+                        for (ContactsPageListAdapter.ContactInfo info:
+                                contactInfos) {
+                            ListTree.TreeNode node2=tree.addNode(groupNode2,info,R.layout.contacts_contact_item);
+                            //没有子节点了，不显示，收起图标
+                            node2.setShowExpandIcon(false);
+                        }
+                        //通知RecyclerView更新数据
+                        contactsAdapter.notifyDataSetChanged();
+                    }
+
+                    @Override
+                    public void onError(@io.reactivex.annotations.NonNull Throwable e) {
+                        //提示错误信息
+                        String errmsg=e.getLocalizedMessage();
+                        Snackbar.make(rootView,"错误信息："+errmsg,Snackbar.LENGTH_LONG).setAction("Action",null).show();
+                        Log.i("列表错误信息"  , errmsg);
+                    }
+
+                    @Override
+                    public void onComplete() {
+                        Log.i("完成", "get contacts completed!");
+                    }
+                });
+    }
+
     //创建并实现联系人界面
     private View createContactsPage(){
+        //创建View
         View v=getLayoutInflater().inflate(R.layout.contacts_page_layout,null);
+            //向树中添加节点
 
+        //创建组，组是树的根节点，它们的父节点是null
         ContactsPageListAdapter.GroupInfo group1=new ContactsPageListAdapter.GroupInfo("特别关心",0);
-        ContactsPageListAdapter.GroupInfo group2=new ContactsPageListAdapter.GroupInfo("QQ好友",1);
+        ContactsPageListAdapter.GroupInfo group2=new ContactsPageListAdapter.GroupInfo("我的好友",1);
         ContactsPageListAdapter.GroupInfo group3=new ContactsPageListAdapter.GroupInfo("朋友",0);
         ContactsPageListAdapter.GroupInfo group4=new ContactsPageListAdapter.GroupInfo("家人",0);
         ContactsPageListAdapter.GroupInfo group5=new ContactsPageListAdapter.GroupInfo("同学",0);
-        ListTree.TreeNode groupNode1=tree.addNode(null,group1,R.layout.contacts_group_item);
-        ListTree.TreeNode groupNode2=tree.addNode(null,group2,R.layout.contacts_group_item);
-        ListTree.TreeNode groupNode3=tree.addNode(null,group3,R.layout.contacts_group_item);
-        ListTree.TreeNode groupNode4=tree.addNode(null,group4,R.layout.contacts_group_item);
-        ListTree.TreeNode groupNode5=tree.addNode(null,group5,R.layout.contacts_group_item);
-        //第二层，联系人信息
+             groupNode1=tree.addNode(null,group1,R.layout.contacts_group_item);
+            groupNode2=tree.addNode(null,group2,R.layout.contacts_group_item);
+           groupNode3=tree.addNode(null,group3,R.layout.contacts_group_item);
+            groupNode4=tree.addNode(null,group4,R.layout.contacts_group_item);
+             groupNode5=tree.addNode(null,group5,R.layout.contacts_group_item);
+
+        //获取页面里的RecyclerView，为它们创建Adapter
+        RecyclerView recyclerView=v.findViewById(R.id.contactListView);
+        recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+         contactsAdapter =new ContactsPageListAdapter(tree);
+         recyclerView.setAdapter(new ContactsPageListAdapter(tree));
+         //响应搜索控件的点击事件，显示搜索结果
+        View fakeSearchView =v.findViewById(R.id.searchViewStub);
+        fakeSearchView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent=new Intent(getContext(),SearchActivity.class);
+                startActivity(intent);
+            }
+        });
+       /* //第二层，联系人信息
         //头像
         Bitmap bitmap= BitmapFactory.decodeResource(getResources(),R.drawable.contacts_normal);
         //联系人1
@@ -301,7 +402,7 @@ public class MainFragment extends Fragment {
         //获取页面里的RecycleView，为它创建Adapter
         RecyclerView recyclerView=v.findViewById(R.id.contactListView);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        recyclerView.setAdapter(new ContactsPageListAdapter(tree));
+        recyclerView.setAdapter(new ContactsPageListAdapter(tree));*/
         return  v;
     }
     //为ViewPager派生一个适配器类
